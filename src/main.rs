@@ -132,7 +132,7 @@ fn main() {
     });
 
     println!(
-        "Printing '{}' to ({}, {}) @ {}x{} every {} ms",
+        "Printing '{}' to ({}, {}) @ {}x{} pixels every {} ms",
         filename, origin_x, origin_y, image_width, image_height, rate
     );
     eprintln!(
