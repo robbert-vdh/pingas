@@ -7,8 +7,9 @@ use clap::{value_t, value_t_or_exit, App, Arg};
 use image::{FilterType, GenericImageView, Rgba};
 use std::net::{IpAddr, Ipv6Addr};
 use std::process::exit;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::prelude::*;
+use tokio::timer::Delay;
 use tokio_ping::Pinger;
 
 /// The default rate of the pings in miliseconds.
@@ -109,13 +110,25 @@ fn main() {
             streams
         })
         .map(|streams| {
-            for stream in streams {
+            // To prevent hammering the packet queue we will delay every four pixels by one milisecond.
+            for (stream_id, stream) in streams.into_iter().enumerate() {
+                let stream_start = Instant::now() + Duration::from_millis(stream_id as u64 / 4);
+
                 tokio::spawn(
-                    stream
-                        .map_err(|err| {
-                            eprintln!("Error: {}", err);
-                            exit(1);
-                        })
+                    Delay::new(stream_start)
+                        .map_err(|_| ())
+                        .into_stream()
+                        .chain(stream.map_err(move |err| {
+                            // Some pings will fail because we are spamming them
+                            // too fast. Our only solution seems to be to simply
+                            // ignore those errors.
+                            // TODO: Is there a better way to either repeat
+                            //       failed pings or to increase the packet
+                            //       queue limit?
+                            eprintln!("{} :: {}", stream_id, err);
+                        }))
+                        // Also, is there a better built-in way to silently
+                        // ignore the return values?
                         .for_each(|_| Ok(())),
                 );
             }
@@ -124,6 +137,10 @@ fn main() {
     println!(
         "Printing '{}' to ({}, {}) @ {}x{} every {} ms",
         filename, origin_x, origin_y, image_width, image_height, rate
+    );
+    eprintln!(
+        "\nErrors will be printed below, this can happen when the queues are congested. \
+         Try decreasing the rate if this keeps happening."
     );
 
     tokio::run(ping_future.map_err(|err| {
