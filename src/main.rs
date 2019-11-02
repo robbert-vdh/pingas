@@ -1,6 +1,8 @@
+extern crate clap;
 extern crate tokio;
 extern crate tokio_ping;
 
+use clap::{App, Arg};
 use std::net::{IpAddr, Ipv6Addr};
 use std::time::Duration;
 use tokio::prelude::*;
@@ -10,6 +12,45 @@ use tokio_ping::Pinger;
 const PING_RATE: u64 = 100;
 
 fn main() {
+    let matches = App::new("pingas")
+        .version(clap::crate_version!())
+        .author(clap::crate_authors!())
+        .set_term_width(80)
+        .about("A pinger for jinglepings.")
+        .arg(
+            Arg::with_name("filename")
+                .help("A path to an image. Most bitmap format are supported.")
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("x")
+                .help("The x coordinate to draw at. (range [1..1920])")
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("y")
+                .help("The y coordinate to draw at. (range [1..1080])")
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("width")
+                .help("The width of the scaled bitmap.")
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("height")
+                .help(
+                    "The height of the scaled bitmap. If set, the bitmap will be resized to fit \
+                     within the specified width and height.",
+                )
+                .takes_value(true),
+        )
+        .get_matches();
+
     let pinger = Pinger::new();
 
     let ping_future = pinger
