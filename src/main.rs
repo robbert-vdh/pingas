@@ -20,7 +20,7 @@ fn main() {
         .version(clap::crate_version!())
         .author(clap::crate_authors!())
         .set_term_width(80)
-        .about("A pinger for jinglepings.")
+        .about("A Jinglepings pinger")
         .arg(
             Arg::with_name("rate")
                 .short("r")

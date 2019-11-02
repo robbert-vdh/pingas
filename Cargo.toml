@@ -1,5 +1,6 @@
 [package]
 name = "pingas"
+description = "A Jinglepings pinger"
 version = "0.1.0"
 authors = ["Robbert van der Helm <mail@robbertvanderhelm.nl>"]
 edition = "2018"

@@ -1,6 +1,6 @@
 # pingas
 
-A Jinglepings pinger.
+A Jinglepings pinger
 
 ## Running
 
