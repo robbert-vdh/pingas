@@ -107,25 +107,23 @@ fn main() {
 
     // To prevent hammering the packet queue we will delay every 20 pixels by
     // one millisecond
-    let pixel_streams = pixel_streams.map(|streams| {
+    let pixel_streams = pixel_streams.map(move |streams| {
         for (stream_id, stream) in streams.into_iter().enumerate() {
-            let stream_start = Instant::now() + Duration::from_micros(stream_id as u64 * 269);
-
             tokio::spawn(
-                Delay::new(stream_start)
+                Delay::new(Instant::now() + Duration::from_micros(stream_id as u64 * 269))
                     .into_stream()
-                    .chain(stream.then(move |result| {
+                    .chain(stream.or_else(move |err| {
                         // Some pings will fail because we are spamming them
                         // too fast. Our only solution seems to be to simply
                         // ignore those errors.
                         // TODO: Is there a better way to either repeat
                         //       failed pings or to increase the packet
                         //       queue limit?
-                        if let Err(err) = result {
-                            eprintln!("{} :: {}", stream_id, err);
-                        }
+                        eprintln!("{} :: {}", stream_id, err);
 
-                        Ok(())
+                        // We need a delay to prevent the same pixel from
+                        // failing over and over
+                        Delay::new(Instant::now() + Duration::from_millis(rate))
                     }))
                     .map_err(|_| ())
                     .for_each(|_| Ok(())),
