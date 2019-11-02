@@ -109,7 +109,7 @@ fn main() {
     // one millisecond
     let pixel_streams = pixel_streams.map(|streams| {
         for (stream_id, stream) in streams.into_iter().enumerate() {
-            let stream_start = Instant::now() + Duration::from_millis(stream_id as u64 / 20);
+            let stream_start = Instant::now() + Duration::from_micros(stream_id as u64 * 269);
 
             tokio::spawn(
                 Delay::new(stream_start)
