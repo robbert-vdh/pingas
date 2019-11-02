@@ -113,19 +113,21 @@ fn main() {
 
             tokio::spawn(
                 Delay::new(stream_start)
-                    .map_err(|_| ())
                     .into_stream()
-                    .chain(stream.map_err(move |err| {
+                    .chain(stream.then(move |result| {
                         // Some pings will fail because we are spamming them
                         // too fast. Our only solution seems to be to simply
                         // ignore those errors.
                         // TODO: Is there a better way to either repeat
                         //       failed pings or to increase the packet
                         //       queue limit?
-                        eprintln!("{} :: {}", stream_id, err);
+                        if let Err(err) = result {
+                            eprintln!("{} :: {}", stream_id, err);
+                        }
+
+                        Ok(())
                     }))
-                    // Also, is there a better built-in way to silently
-                    // ignore the return values?
+                    .map_err(|_| ())
                     .for_each(|_| Ok(())),
             );
         }
