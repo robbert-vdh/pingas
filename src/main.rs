@@ -6,6 +6,9 @@ use std::time::Duration;
 use tokio::prelude::*;
 use tokio_ping::Pinger;
 
+/// The rate of the pings in miliseconds.
+const PING_RATE: u64 = 100;
+
 fn main() {
     let pinger = Pinger::new();
 
@@ -28,7 +31,7 @@ fn build_stream(
 ) -> impl Stream<Item = (), Error = tokio_ping::Error> {
     pinger
         .chain(build_address(x, y, r, g, b, a))
-        .timeout(Duration::from_millis(100))
+        .timeout(Duration::from_millis(PING_RATE))
         .stream()
         .map(|_| ())
 }
