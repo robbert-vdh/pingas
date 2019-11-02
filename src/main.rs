@@ -12,7 +12,7 @@ use tokio::prelude::*;
 use tokio::timer::Delay;
 use tokio_ping::Pinger;
 
-/// The default rate of the pings in miliseconds.
+/// The default rate of the pings in milliseconds.
 const DEFAULT_PING_RATE: &str = "50";
 
 fn main() {
@@ -88,51 +88,48 @@ fn main() {
     let image_height = image.height();
     let image_width = image.width();
 
-    let pinger = Pinger::new();
-    let ping_future = pinger
-        .map(move |pinger| {
-            let streams: Vec<_> = image
-                .enumerate_pixels()
-                .map(|(x, y, &Rgba([r, g, b, a]))| {
-                    build_stream(
-                        &pinger,
-                        rate,
-                        origin_x + x as u16,
-                        origin_y + y as u16,
-                        r,
-                        g,
-                        b,
-                        a,
-                    )
-                })
-                .collect();
+    let pixel_streams = Pinger::new().map(move |pinger| {
+        let streams: Vec<_> = image
+            .enumerate_pixels()
+            .map(|(x, y, pixel)| {
+                build_stream(
+                    &pinger,
+                    rate,
+                    origin_x + x as u16,
+                    origin_y + y as u16,
+                    pixel,
+                )
+            })
+            .collect();
 
-            streams
-        })
-        .map(|streams| {
-            // To prevent hammering the packet queue we will delay every four pixels by one milisecond.
-            for (stream_id, stream) in streams.into_iter().enumerate() {
-                let stream_start = Instant::now() + Duration::from_millis(stream_id as u64 / 4);
+        streams
+    });
 
-                tokio::spawn(
-                    Delay::new(stream_start)
-                        .map_err(|_| ())
-                        .into_stream()
-                        .chain(stream.map_err(move |err| {
-                            // Some pings will fail because we are spamming them
-                            // too fast. Our only solution seems to be to simply
-                            // ignore those errors.
-                            // TODO: Is there a better way to either repeat
-                            //       failed pings or to increase the packet
-                            //       queue limit?
-                            eprintln!("{} :: {}", stream_id, err);
-                        }))
-                        // Also, is there a better built-in way to silently
-                        // ignore the return values?
-                        .for_each(|_| Ok(())),
-                );
-            }
-        });
+    // To prevent hammering the packet queue we will delay every pixel by one
+    // millisecond
+    let pixel_streams = pixel_streams.map(|streams| {
+        for (stream_id, stream) in streams.into_iter().enumerate() {
+            let stream_start = Instant::now() + Duration::from_millis(stream_id as u64);
+
+            tokio::spawn(
+                Delay::new(stream_start)
+                    .map_err(|_| ())
+                    .into_stream()
+                    .chain(stream.map_err(move |err| {
+                        // Some pings will fail because we are spamming them
+                        // too fast. Our only solution seems to be to simply
+                        // ignore those errors.
+                        // TODO: Is there a better way to either repeat
+                        //       failed pings or to increase the packet
+                        //       queue limit?
+                        eprintln!("{} :: {}", stream_id, err);
+                    }))
+                    // Also, is there a better built-in way to silently
+                    // ignore the return values?
+                    .for_each(|_| Ok(())),
+            );
+        }
+    });
 
     println!(
         "Printing '{}' to ({}, {}) @ {}x{} every {} ms",
@@ -143,7 +140,7 @@ fn main() {
          Try decreasing the rate if this keeps happening."
     );
 
-    tokio::run(ping_future.map_err(|err| {
+    tokio::run(pixel_streams.map_err(|err| {
         eprintln!("Error: {}", err);
         exit(1);
     }));
@@ -157,13 +154,10 @@ fn build_stream(
     rate: u64,
     x: u16,
     y: u16,
-    r: u8,
-    g: u8,
-    b: u8,
-    a: u8,
+    pixel: &Rgba<u8>,
 ) -> impl Stream<Item = (), Error = tokio_ping::Error> {
     pinger
-        .chain(build_address(x, y, r, g, b, a))
+        .chain(build_address(x, y, pixel))
         .timeout(Duration::from_millis(rate))
         .stream()
         .map(|_| ())
@@ -172,7 +166,9 @@ fn build_stream(
 /// Build an IPv6 address for writing a pixel. `x` and `y` should correspond to
 /// some pixel on a 1920x1080 screen.
 #[allow(clippy::many_single_char_names)]
-fn build_address(x: u16, y: u16, r: u8, g: u8, b: u8, a: u8) -> IpAddr {
+fn build_address(x: u16, y: u16, pixel: &Rgba<u8>) -> IpAddr {
+    let &Rgba([r, g, b, a]) = pixel;
+
     IpAddr::V6(Ipv6Addr::new(
         0x2001,
         0x610,
