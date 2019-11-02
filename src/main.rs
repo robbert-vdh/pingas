@@ -105,11 +105,11 @@ fn main() {
         streams
     });
 
-    // To prevent hammering the packet queue we will delay every pixel by one
-    // millisecond
+    // To prevent hammering the packet queue we will delay every 20 pixels by
+    // one millisecond
     let pixel_streams = pixel_streams.map(|streams| {
         for (stream_id, stream) in streams.into_iter().enumerate() {
-            let stream_start = Instant::now() + Duration::from_millis(stream_id as u64);
+            let stream_start = Instant::now() + Duration::from_millis(stream_id as u64 / 20);
 
             tokio::spawn(
                 Delay::new(stream_start)
