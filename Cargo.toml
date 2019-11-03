@@ -9,6 +9,5 @@ edition = "2018"
 
 [dependencies]
 clap = "2.33.0"
+fastping-rs = "0.1.4"
 image = "0.22.3"
-tokio = "0.1.22"
-tokio-ping = "0.3.0"

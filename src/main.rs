@@ -1,16 +1,10 @@
-extern crate clap;
-extern crate image;
-extern crate tokio;
-extern crate tokio_ping;
-
 use clap::{value_t, value_t_or_exit, App, Arg};
+use fastping_rs::Pinger;
 use image::{FilterType, GenericImageView, Rgba};
 use std::net::{IpAddr, Ipv6Addr};
 use std::process::exit;
-use std::time::{Duration, Instant};
-use tokio::prelude::*;
-use tokio::timer::Delay;
-use tokio_ping::Pinger;
+use std::thread;
+use std::time::Duration;
 
 /// The default rate of the pings in milliseconds.
 const DEFAULT_PING_RATE: &str = "50";
@@ -62,7 +56,7 @@ fn main() {
         )
         .get_matches();
 
-    let rate = value_t_or_exit!(matches, "rate", u64);
+    let delay = value_t_or_exit!(matches, "rate", u64);
     let filename = matches.value_of("filename").unwrap();
     let origin_x = value_t_or_exit!(matches, "x", u16);
     let origin_y = value_t_or_exit!(matches, "y", u16);
@@ -88,79 +82,47 @@ fn main() {
     let image_height = image.height();
     let image_width = image.width();
 
-    let pixel_streams = Pinger::new().map(move |pinger| {
-        let streams: Vec<_> = image
-            .enumerate_pixels()
-            .map(|(x, y, pixel)| {
-                build_stream(
-                    &pinger,
-                    rate,
-                    origin_x + x as u16,
-                    origin_y + y as u16,
-                    pixel,
-                )
-            })
-            .collect();
-
-        streams
-    });
-
-    // To prevent hammering the packet queue we will delay every 20 pixels by
-    // one millisecond
-    let pixel_streams = pixel_streams.map(move |streams| {
-        for (stream_id, stream) in streams.into_iter().enumerate() {
-            tokio::spawn(
-                Delay::new(Instant::now() + Duration::from_micros(stream_id as u64 * 269))
-                    .into_stream()
-                    .chain(stream.or_else(move |err| {
-                        // Some pings will fail because we are spamming them
-                        // too fast. Our only solution seems to be to simply
-                        // ignore those errors.
-                        // TODO: Is there a better way to either repeat
-                        //       failed pings or to increase the packet
-                        //       queue limit?
-                        eprintln!("{} :: {}", stream_id, err);
-
-                        // We need a delay to prevent the same pixel from
-                        // failing over and over
-                        Delay::new(Instant::now() + Duration::from_millis(rate))
-                    }))
-                    .map_err(|_| ())
-                    .for_each(|_| Ok(())),
-            );
-        }
-    });
-
     println!(
         "Printing '{}' to ({}, {}) @ {}x{} pixels every {} ms",
-        filename, origin_x, origin_y, image_width, image_height, rate
+        filename, origin_x, origin_y, image_width, image_height, delay
     );
     eprintln!(
         "\nErrors will be printed below, this can happen when the queues are congested. \
          Try decreasing the rate if this keeps happening."
     );
 
-    tokio::run(pixel_streams.map_err(|err| {
-        eprintln!("Error: {}", err);
-        exit(1);
-    }));
-}
+    // We will ping per row to avoid hammering the server
+    let handles: Vec<_> = image
+        .enumerate_rows()
+        .map(|(row_id, row)| {
+            let addresses: Vec<_> = row
+                .map(|(x, y, pixel)| {
+                    build_address(origin_x + x as u16, origin_y + y as u16, pixel).to_string()
+                })
+                .collect();
 
-/// Build a stream that pings a certain pixel every n milliseconds. Since the
-/// server does not return a resposne all pings will time out.
-#[allow(clippy::many_single_char_names, clippy::too_many_arguments)]
-fn build_stream(
-    pinger: &Pinger,
-    rate: u64,
-    x: u16,
-    y: u16,
-    pixel: &Rgba<u8>,
-) -> impl Stream<Item = (), Error = tokio_ping::Error> {
-    pinger
-        .chain(build_address(x, y, pixel))
-        .timeout(Duration::from_millis(rate))
-        .stream()
-        .map(|_| ())
+            // TODO: Print the errors so we know when the network is congested
+            let (pinger, _) = Pinger::new(Some(5), Some(1)).unwrap();
+            for address in &addresses {
+                pinger.add_ipaddr(address);
+            }
+
+            thread::spawn(move || {
+                // By delaying every row a little we can hopefully avoid a few clashes
+                thread::sleep(Duration::from_millis(row_id as u64 * 13));
+
+                loop {
+                    pinger.ping_once();
+
+                    thread::sleep(Duration::from_millis(delay));
+                }
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
 }
 
 /// Build an IPv6 address for writing a pixel. `x` and `y` should correspond to
