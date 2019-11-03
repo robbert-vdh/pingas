@@ -4,10 +4,6 @@ use image::{FilterType, GenericImageView, Rgba};
 use std::net::{IpAddr, Ipv6Addr};
 use std::process::exit;
 use std::thread;
-use std::time::Duration;
-
-/// The default rate of the pings in milliseconds.
-const DEFAULT_PING_RATE: &str = "50";
 
 fn main() {
     let matches = App::new("pingas")
@@ -15,13 +11,6 @@ fn main() {
         .author(clap::crate_authors!())
         .set_term_width(80)
         .about("A Jinglepings pinger")
-        .arg(
-            Arg::with_name("rate")
-                .short("r")
-                .help("The delay in milliseconds between pings for every pixel in the image.")
-                .takes_value(true)
-                .default_value(DEFAULT_PING_RATE),
-        )
         .arg(
             Arg::with_name("filename")
                 .help("A path to an image. Most bitmap format are supported.")
@@ -56,7 +45,6 @@ fn main() {
         )
         .get_matches();
 
-    let delay = value_t_or_exit!(matches, "rate", u64);
     let filename = matches.value_of("filename").unwrap();
     let origin_x = value_t_or_exit!(matches, "x", u16);
     let origin_y = value_t_or_exit!(matches, "y", u16);
@@ -83,12 +71,9 @@ fn main() {
     let image_width = image.width();
 
     println!(
-        "Printing '{}' to ({}, {}) @ {}x{} pixels every {} ms",
-        filename, origin_x, origin_y, image_width, image_height, delay
+        "Printing '{}' to ({}, {}) @ {}x{} pixels",
+        filename, origin_x, origin_y, image_width, image_height
     );
-    if delay == 0 {
-        eprintln!("\nSetting a delay of 0 will likely cause adverse effects.");
-    }
     eprintln!(
         "\nErrors will be printed below, this can happen when the queues are congested. \
          Try decreasing the rate if this keeps happening."
@@ -97,7 +82,7 @@ fn main() {
     // We will ping per row to avoid hammering the server
     let handles: Vec<_> = image
         .enumerate_rows()
-        .map(|(row_id, row)| {
+        .map(|(_, row)| {
             let addresses: Vec<_> = row
                 // Skip any completely transparent pixels
                 .filter(|(_, _, &Rgba([_, _, _, alpha]))| alpha > 0)
@@ -106,26 +91,19 @@ fn main() {
                 })
                 .collect();
 
-            (row_id, addresses)
+            addresses
         })
         // Skip any completely transparent rows
-        .filter(|(_, addresses)| addresses.len() > 0)
-        .map(|(row_id, addresses)| {
+        .filter(|addresses| addresses.len() > 0)
+        .map(|addresses| {
             // TODO: Print the errors so we know when the network is congested
-            let (pinger, _) = Pinger::new(Some(delay), Some(0)).unwrap();
+            let (pinger, _) = Pinger::new(Some(1), Some(0)).unwrap();
             for address in &addresses {
                 pinger.add_ipaddr(address);
             }
 
-            thread::spawn(move || {
-                // By delaying every row a little we can hopefully avoid a few clashes
-                thread::sleep(Duration::from_millis(row_id as u64 * 13));
-
-                loop {
-                    pinger.ping_once();
-
-                    thread::sleep(Duration::from_millis(delay));
-                }
+            thread::spawn(move || loop {
+                pinger.ping_once();
             })
         })
         .collect();
