@@ -96,6 +96,8 @@ fn main() {
         .enumerate_rows()
         .map(|(row_id, row)| {
             let addresses: Vec<_> = row
+                // Skip any completely transparent pixels
+                .filter(|(_, _, &Rgba([_, _, _, alpha]))| alpha > 0)
                 .map(|(x, y, pixel)| {
                     build_address(origin_x + x as u16, origin_y + y as u16, pixel).to_string()
                 })
