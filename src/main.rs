@@ -86,6 +86,9 @@ fn main() {
         "Printing '{}' to ({}, {}) @ {}x{} pixels every {} ms",
         filename, origin_x, origin_y, image_width, image_height, delay
     );
+    if delay == 0 {
+        eprintln!("\nSetting a delay of 0 will likely cause adverse effects.");
+    }
     eprintln!(
         "\nErrors will be printed below, this can happen when the queues are congested. \
          Try decreasing the rate if this keeps happening."
@@ -104,7 +107,7 @@ fn main() {
                 .collect();
 
             // TODO: Print the errors so we know when the network is congested
-            let (pinger, _) = Pinger::new(Some(5), Some(1)).unwrap();
+            let (pinger, _) = Pinger::new(Some(delay), Some(0)).unwrap();
             for address in &addresses {
                 pinger.add_ipaddr(address);
             }
