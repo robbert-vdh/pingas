@@ -12,6 +12,14 @@ fn main() {
         .set_term_width(80)
         .about("A Jinglepings pinger")
         .arg(
+            Arg::with_name("repeat")
+                .short("r")
+                .help("The number of repetitions when pinging rows.")
+                .long_help("This might be useful when drawing small images that don't quite saturate the packet queue.")
+                .takes_value(true)
+                .default_value("1"),
+        )
+        .arg(
             Arg::with_name("filename")
                 .help("A path to an image. Most bitmap format are supported.")
                 .required(true)
@@ -45,6 +53,7 @@ fn main() {
         )
         .get_matches();
 
+    let repetitions = value_t_or_exit!(matches, "repeat", usize);
     let filename = matches.value_of("filename").unwrap();
     let origin_x = value_t_or_exit!(matches, "x", u16);
     let origin_y = value_t_or_exit!(matches, "y", u16);
@@ -95,15 +104,19 @@ fn main() {
         })
         // Skip any completely transparent rows
         .filter(|addresses| addresses.len() > 0)
-        .map(|addresses| {
-            // TODO: Print the errors so we know when the network is congested
-            let (pinger, _) = Pinger::new(Some(1), Some(0)).unwrap();
-            for address in &addresses {
-                pinger.add_ipaddr(address);
-            }
+        .flat_map(|addresses| {
+            // We can have multiple threads pinging the same row, this is useful
+            // for pinging small images faster
+            (0..repetitions).map(move |_| {
+                // TODO: Print the errors so we know when the network is congested
+                let (pinger, _) = Pinger::new(Some(1), Some(0)).unwrap();
+                for address in &addresses {
+                    pinger.add_ipaddr(address);
+                }
 
-            thread::spawn(move || loop {
-                pinger.ping_once();
+                thread::spawn(move || loop {
+                    pinger.ping_once();
+                })
             })
         })
         .collect();
