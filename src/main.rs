@@ -15,7 +15,11 @@ fn main() {
             Arg::with_name("repeat")
                 .short("r")
                 .help("The number of repetitions when pinging rows.")
-                .long_help("This might be useful when drawing small images that don't quite saturate the packet queue.")
+                .long_help(
+                    "The number of repetitions when pinging rows. \
+                     This might be useful when drawing small images \
+                     that don't quite saturate the packet queue.",
+                )
                 .takes_value(true)
                 .default_value("1"),
         )
