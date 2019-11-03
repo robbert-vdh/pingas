@@ -24,6 +24,14 @@ fn main() {
                 .default_value("1"),
         )
         .arg(
+            Arg::with_name("filter")
+                .short("f")
+                .long("filter")
+                .help("Choose kind of filtering used when scaling the iamge.")
+                .possible_values(&["nearest", "linear", "cubic", "gaussian", "lanczos3"])
+                .default_value("cubic"),
+        )
+        .arg(
             Arg::with_name("filename")
                 .help("A path to an image. Most bitmap format are supported.")
                 .required(true)
@@ -63,6 +71,14 @@ fn main() {
     let origin_y = value_t_or_exit!(matches, "y", u16);
     let width = value_t_or_exit!(matches, "width", u32);
     let height = value_t!(matches, "height", u32);
+    let filter_type = match matches.value_of("filter").unwrap() {
+        "nearest" => FilterType::Nearest,
+        "linear" => FilterType::Triangle,
+        "cubic" => FilterType::CatmullRom,
+        "gaussian" => FilterType::Gaussian,
+        "lanczos3" => FilterType::Lanczos3,
+        _ => unreachable!(),
+    };
 
     let image = {
         let image = image::open(filename).unwrap_or_else(|err| {
@@ -75,7 +91,7 @@ fn main() {
         let height = height.unwrap_or_else(|_| {
             ((width as f32) / (image.width() as f32) * (image.height() as f32)) as u32
         });
-        image.resize(width, height, FilterType::Gaussian).to_rgba()
+        image.resize(width, height, filter_type).to_rgba()
     };
 
     // These are the dimensions of the resized image, they can be slightly
