@@ -106,6 +106,11 @@ fn main() {
                 })
                 .collect();
 
+            (row_id, addresses)
+        })
+        // Skip any completely transparent rows
+        .filter(|(_, addresses)| addresses.len() > 0)
+        .map(|(row_id, addresses)| {
             // TODO: Print the errors so we know when the network is congested
             let (pinger, _) = Pinger::new(Some(delay), Some(0)).unwrap();
             for address in &addresses {
