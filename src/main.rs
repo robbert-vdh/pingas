@@ -29,7 +29,11 @@ fn main() {
                 .long("filter")
                 .help("Choose kind of filtering used when scaling the iamge.")
                 .possible_values(&["nearest", "linear", "cubic", "gaussian", "lanczos3"])
-                .default_value("lanczos3"),
+                // Nearest neighbour is the default because the system does not
+                // actually blend semitransparent pixels. All other filtering
+                // algorithms will cause there to be a border of semitransparent
+                // pixels resulting in weird looking artifacts.
+                .default_value("nearest"),
         )
         .arg(
             Arg::with_name("filename")
