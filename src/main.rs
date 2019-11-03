@@ -75,7 +75,7 @@ fn main() {
         let height = height.unwrap_or_else(|_| {
             ((width as f32) / (image.width() as f32) * (image.height() as f32)) as u32
         });
-        image.resize(width, height, FilterType::Lanczos3).to_rgba()
+        image.resize(width, height, FilterType::Gaussian).to_rgba()
     };
 
     // These are the dimensions of the resized image, they can be slightly
