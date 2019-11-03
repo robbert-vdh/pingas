@@ -29,7 +29,7 @@ fn main() {
                 .long("filter")
                 .help("Choose kind of filtering used when scaling the iamge.")
                 .possible_values(&["nearest", "linear", "cubic", "gaussian", "lanczos3"])
-                .default_value("cubic"),
+                .default_value("lanczos3"),
         )
         .arg(
             Arg::with_name("filename")
